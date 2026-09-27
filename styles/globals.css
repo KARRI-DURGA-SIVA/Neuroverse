@@ -1,0 +1,398 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background-color: #fafafa;
+  color: #111827;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.card {
+  @apply bg-white border border-gray-200 rounded-xl2 shadow-card;
+}
+
+.card-hover {
+  @apply transition-shadow duration-150 hover:shadow-cardHover;
+}
+
+.btn-primary {
+  @apply bg-accent-500 hover:bg-accent-600 text-white font-medium rounded-lg px-4 py-2.5 transition-colors duration-150;
+}
+
+.btn-secondary {
+  @apply bg-white border border-gray-300 hover:bg-gray-50 text-ink-700 font-medium rounded-lg px-4 py-2.5 transition-colors duration-150;
+}
+
+.input-field {
+  @apply w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent;
+}
+
+.label {
+  @apply block text-sm font-medium text-ink-700 mb-1.5;
+}
+
+.badge {
+  @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
+}
+
+/* ---- Hero welcome banner (dark, dashboard-inspired) ---- */
+.hero-dark {
+  @apply relative overflow-hidden rounded-xl3 bg-surface-900 text-white shadow-hero;
+}
+.hero-glow-a {
+  @apply absolute -top-16 -right-10 w-64 h-64 rounded-full bg-accent-500/30 blur-3xl pointer-events-none;
+}
+.hero-glow-b {
+  @apply absolute -bottom-20 left-10 w-56 h-56 rounded-full bg-pink-fg/20 blur-3xl pointer-events-none;
+}
+
+/* ---- Stat chip cards (pastel icon + number, top-of-dashboard row) ---- */
+.stat-chip-icon {
+  @apply w-11 h-11 rounded-xl2 flex items-center justify-center shrink-0;
+}
+
+/* ---- Bold flat "Continue Learning" course cards ---- */
+.course-card {
+  @apply relative overflow-hidden rounded-xl3 p-5 text-white flex flex-col justify-between min-h-[150px] transition-transform duration-150 hover:-translate-y-0.5;
+}
+
+.marketplace-banner {
+  background: linear-gradient(135deg, #172554 0%, #312e81 52%, #4c1d95 100%);
+  border: 1px solid rgba(129, 140, 248, 0.4);
+  box-shadow: 0 18px 32px rgba(30, 41, 99, 0.2);
+}
+
+.course-discovery-card {
+  position: relative;
+  display: flex;
+  min-height: 345px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 1.25rem;
+  box-shadow: 0 14px 20px rgba(15, 23, 42, 0.03);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.course-discovery-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 28px rgba(15, 23, 42, 0.06);
+}
+
+.course-discovery-card__bar {
+  height: 0.42rem;
+  width: 100%;
+}
+
+.course-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.12);
+  padding: 0.38rem 0.7rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.soft-goal-card {
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 1.1rem;
+  padding: 1.25rem;
+  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.02);
+}
+
+.soft-course-card {
+  position: relative;
+  display: flex;
+  min-height: 210px;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 12px 14px rgba(15, 23, 42, 0.02);
+}
+
+.soft-course-card__bar {
+  height: 0.38rem;
+  width: 100%;
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+}
+
+/* ---- Simple CSS conic-gradient donut, no chart library needed ---- */
+.donut {
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.donut-hole {
+  @apply bg-white rounded-full flex flex-col items-center justify-center;
+}
+
+/* ---- Agentic AI assistant floating widget ---- */
+.agent-fab {
+  @apply fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-accent-500 hover:bg-accent-600 text-white shadow-hero flex items-center justify-center transition-transform hover:scale-105;
+}
+.agent-panel {
+  @apply fixed bottom-24 right-6 z-40 w-[380px] max-w-[92vw] h-[560px] max-h-[75vh] bg-white rounded-xl3 shadow-hero border border-gray-200 flex flex-col overflow-hidden;
+}
+.agent-header {
+  @apply bg-surface-900 text-white px-4 py-3.5 flex items-center justify-between shrink-0;
+}
+.agent-bubble-user {
+  @apply bg-accent-500 text-white ml-auto rounded-2xl rounded-br-sm px-3.5 py-2.5 text-sm max-w-[85%];
+}
+.agent-bubble-ai {
+  @apply bg-ink-100 text-ink-900 rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm max-w-[85%];
+}
+.agent-proposal-card {
+  @apply bg-white border border-accent-100 rounded-xl2 p-3.5 shadow-card;
+}
+
+.brain-loader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 150px;
+  height: 150px;
+  animation: brainFloat 3s ease-in-out infinite;
+}
+
+.brain-loader__core {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 90px;
+  border-radius: 32px;
+  background: linear-gradient(135deg, #f8fbff 0%, #edf4ff 35%, #e7ecff 100%);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 45px rgba(59, 130, 246, 0.15);
+}
+
+.brain-loader__svg {
+  width: 70px;
+  height: 70px;
+  display: block;
+}
+
+.brain-loader__orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(8px);
+  opacity: 0.8;
+  animation: orbPulse 2.2s ease-in-out infinite;
+}
+
+.brain-loader__orb--one {
+  width: 120px;
+  height: 120px;
+  background: rgba(82, 95, 255, 0.22);
+  transform: translate(-26px, 10px);
+}
+
+.brain-loader__orb--two {
+  width: 96px;
+  height: 96px;
+  background: rgba(73, 197, 255, 0.28);
+  transform: translate(26px, -14px);
+  animation-delay: 0.8s;
+}
+
+.brain-loader__orb--three {
+  width: 72px;
+  height: 72px;
+  background: rgba(168, 119, 255, 0.22);
+  transform: translate(0, 26px);
+  animation-delay: 1.2s;
+}
+
+@keyframes brainFloat {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.02);
+  }
+}
+
+.welcome-shell {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 12% 26%, rgba(117, 144, 255, 0.18), transparent 18%),
+    radial-gradient(circle at 86% 84%, rgba(160, 120, 255, 0.18), transparent 20%),
+    linear-gradient(135deg, #091d52 0%, #0b1e58 32%, #0d1d4d 100%);
+}
+
+.welcome-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem 1.5rem;
+}
+
+.brain-logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 220px;
+  height: 180px;
+  margin-bottom: 1rem;
+  animation: brainFloat 4s ease-in-out infinite;
+}
+
+.brain-logo__svg {
+  width: 220px;
+  height: 180px;
+  display: block;
+  filter: drop-shadow(0 14px 28px rgba(125, 146, 255, 0.3));
+}
+
+.brain-logo__spark {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.8);
+}
+
+.brain-logo__spark--one {
+  top: 18%;
+  right: 18%;
+}
+
+.brain-logo__spark--two {
+  top: 8%;
+  left: 18%;
+  width: 12px;
+  height: 12px;
+}
+
+.welcome-title {
+  margin: 0;
+  font-size: clamp(4rem, 7vw, 9rem);
+  line-height: 0.9;
+  letter-spacing: -0.075em;
+  font-weight: 700;
+  color: #f3f6ff;
+  text-shadow: 0 0 22px rgba(125, 146, 255, 0.24);
+}
+
+.welcome-subtitle {
+  margin-top: 1.2rem;
+  font-size: clamp(1.1rem, 2vw, 1.8rem);
+  letter-spacing: 0.14em;
+  text-transform: none;
+  color: rgba(214, 224, 255, 0.9);
+  font-weight: 500;
+}
+
+.welcome-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  margin-top: 2.2rem;
+}
+
+.welcome-dots span {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #97d8ff 0%, #8fb6ff 45%, #c68dff 100%);
+  box-shadow: 0 10px 18px rgba(142, 179, 255, 0.35);
+  animation: pulseDot 1.7s ease-in-out infinite;
+}
+
+.welcome-dots span:nth-child(2) { animation-delay: 0.15s; }
+.welcome-dots span:nth-child(3) { animation-delay: 0.3s; }
+.welcome-dots span:nth-child(4) { animation-delay: 0.45s; }
+
+.welcome-status {
+  margin-top: 1.6rem;
+  font-size: 1.2rem;
+  color: rgba(220, 228, 255, 0.9);
+  font-weight: 400;
+}
+
+.welcome-orb {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(122, 148, 255, 0.48);
+  filter: blur(0.1px);
+}
+
+.welcome-orb--left {
+  width: 1280px;
+  height: 1280px;
+  left: -540px;
+  top: -440px;
+  background: rgba(90, 113, 255, 0.05);
+}
+
+.welcome-orb--right {
+  width: 980px;
+  height: 980px;
+  right: -360px;
+  bottom: -430px;
+  background: rgba(154, 104, 255, 0.16);
+}
+
+@keyframes orbPulse {
+  0%, 100% {
+    transform: scale(0.94);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes brainFloat {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) scale(1.02);
+  }
+}
+
+@keyframes pulseDot {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
