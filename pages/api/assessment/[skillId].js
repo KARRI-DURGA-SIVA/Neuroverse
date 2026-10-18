@@ -1,4 +1,4 @@
-const { query } = require("../../../lib/db");
+import { query } from "../../../lib/db";
 const { getUserFromReq } = require("../../../lib/auth");
 const { scoreAssessment } = require("../../../lib/classification");
 const { generateLocalAssessmentQuestions } = require("../../../lib/local-assessment-generator");

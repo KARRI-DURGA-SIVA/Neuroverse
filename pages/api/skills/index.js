@@ -1,38 +1,49 @@
-const { query } = require("../../../lib/db");
+
+import { query } from "../../../lib/db";
+import { getAuthenticatedUser } from "../../../lib/auth";
 
 export default async function handler(req, res) {
-  if (req.method === "GET") {
-    const result = await query("SELECT * FROM skills ORDER BY name ASC");
-    return res.status(200).json({ skills: result.rows });
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate"
+  );
+
+  res.setHeader("Allow", "GET");
+
+  if (req.method !== "GET") {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
+    });
   }
 
-  if (req.method === "POST") {
-    // Manual entry: user typed a skill that isn't in the dropdown list.
-    const { name, category, test_type, difficulty_factor } = req.body;
-    if (!name) return res.status(400).json({ error: "name is required" });
+  try {
+    const authUser = await getAuthenticatedUser(req);
+    const userId = authUser?.userId ?? authUser?.id;
 
-    try {
-      const existing = await query("SELECT * FROM skills WHERE LOWER(name) = LOWER($1)", [name]);
-      if (existing.rows.length > 0) {
-        return res.status(200).json({ skill: existing.rows[0] });
-      }
-
-      const result = await query(
-        `INSERT INTO skills (name, category, test_type, difficulty_factor, is_custom)
-         VALUES ($1, $2, $3, $4, true) RETURNING *`,
-        [
-          name,
-          category || "general",
-          test_type || "mcq",
-          difficulty_factor || 1.0,
-        ]
-      );
-      return res.status(201).json({ skill: result.rows[0] });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Failed to add skill", details: err.message });
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Not authenticated",
+      });
     }
-  }
 
-  return res.status(405).json({ error: "Method not allowed" });
+    // Replace this example query with the actual
+    // SQL query used by your skills API.
+    const result = await query(
+      "SELECT * FROM skills ORDER BY name ASC"
+    );
+
+    return res.status(200).json({
+      success: true,
+      skills: result.rows,
+    });
+  } catch (error) {
+    console.error("Skills API error:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to load skills",
+    });
+  }
 }

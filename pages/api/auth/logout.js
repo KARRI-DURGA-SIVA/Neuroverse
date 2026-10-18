@@ -1,4 +1,4 @@
-const { clearAuthCookie } = require("../../../lib/auth");
+import { clearAuthCookie } from "../../../lib/auth";
 
 export default function handler(req, res) {
   clearAuthCookie(res);

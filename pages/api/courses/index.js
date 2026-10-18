@@ -1,4 +1,4 @@
-const { query } = require("../../../lib/db");
+import { query } from "../../../lib/db";
 const { getUserFromReq } = require("../../../lib/auth");
 const { computeSessionPrice, DEFAULT_BASE_RATE_CREDITS_PER_HOUR } = require("../../../lib/pricing");
 
@@ -23,13 +23,13 @@ export default async function handler(req, res) {
     const conditions = ["c.is_active IS NOT FALSE"];
 
     if (skillId) {
-      conditions.push("c.skill_id = $" + (conditions.length + params.length));
       params.push(skillId);
+      conditions.push(`c.skill_id = $${params.length}`);
     }
 
     if (mine === "true") {
-      conditions.push("c.mentor_id = $" + (conditions.length + params.length));
       params.push(authUser.id);
+      conditions.push(`c.mentor_id = $${params.length}`);
     }
 
     if (conditions.length > 0) {

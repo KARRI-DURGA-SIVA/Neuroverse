@@ -1,58 +1,76 @@
-const bcrypt = require("bcryptjs");
-const { query } = require("../../../lib/db");
-const { signToken, setAuthCookie } = require("../../../lib/auth");
+
+import bcrypt from "bcryptjs";
+import pool from "../../../lib/db";
+import jwt from "jsonwebtoken";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  const { name, email, password, age, languages, profilePic, bio } = req.body;
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: "name, email and password are required" });
-  }
-
-  // profilePic is a data URL (e.g. "data:image/jpeg;base64,...") produced by
-  // client-side resizing in pages/signup.js. Guard against absurdly large
-  // payloads being posted directly to the API.
-  if (profilePic && profilePic.length > 2_000_000) {
-    return res.status(400).json({ error: "Profile picture is too large" });
-  }
-  if (bio && bio.length > 280) {
-    return res.status(400).json({ error: "Bio must be 280 characters or fewer" });
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ message: "Method not allowed" });
   }
 
   try {
-    const existing = await query("SELECT id FROM users WHERE email = $1", [email]);
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ error: "An account with this email already exists" });
+    const { name, email, password, age, bio, profilePic } =
+      req.body || {};
+
+    if (
+      typeof name !== "string" ||
+      !name.trim() ||
+      typeof email !== "string" ||
+      !email.trim() ||
+      typeof password !== "string" ||
+      password.length < 8
+    ) {
+      return res.status(400).json({
+        message: "Enter your name, email and a password of at least 8 characters",
+      });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const STARTING_CREDITS = 50;
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const result = await query(
-      `INSERT INTO users (name, email, password_hash, age, languages, credits, profile_pic, bio)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, email, credits, profile_pic, bio`,
-      [name, email, passwordHash, age || null, languages || [], STARTING_CREDITS, profilePic || null, bio || null]
+    const existing = await pool.query(
+      "SELECT id FROM users WHERE email = $1",
+      [normalizedEmail]
     );
 
-    const user = result.rows[0];
+    if (existing.rowCount > 0) {
+      return res.status(409).json({
+        message: "Email is already registered",
+      });
+    }
 
-    await query(
-      `INSERT INTO transactions (user_id, type, credits, description) VALUES ($1, 'signup_bonus', $2, 'Welcome bonus on account creation')`,
-      [user.id, STARTING_CREDITS]
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const result = await pool.query(
+      `INSERT INTO users
+       (name, email, password_hash, age, bio, profile_pic, credits)
+       VALUES ($1, $2, $3, $4, $5, $6, 50)
+       RETURNING id, name, email`,
+      [
+        name.trim(),
+        normalizedEmail,
+        passwordHash,
+        age ?? null,
+        bio?.trim() || null,
+        profilePic || null,
+      ]
     );
 
-    await query(
-      `INSERT INTO mentor_reputation (mentor_id, avg_rating, total_reviews, expertise_multiplier) VALUES ($1, 0, 0, 1.0)`,
-      [user.id]
-    );
+    return res.status(201).json({
+      message: "Account created successfully",
+      user: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Signup error:", error.message);
 
-    const token = signToken(user);
-    setAuthCookie(res, token);
+    if (error.code === "23505") {
+      return res.status(409).json({
+        message: "Email is already registered",
+      });
+    }
 
-    return res.status(201).json({ user });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Signup failed", details: err.message });
+    return res.status(500).json({
+      message: "Unable to create account",
+    });
   }
 }

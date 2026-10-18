@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const formidable = require("formidable");
-const { query } = require("../../../../lib/db");
+import { query } from "../../../../lib/db";
 const { getUserFromReq } = require("../../../../lib/auth");
 
 export const config = { api: { bodyParser: false } };

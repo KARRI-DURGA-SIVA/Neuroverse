@@ -49,8 +49,8 @@ export default function MentorMatch() {
         method: "POST",
         body: JSON.stringify({ courseId: selected.courseId, hours, scheduledStart }),
       });
-      setBookingMsg(`Session booked! ${res.price.totalChargedToLearner} credits charged (incl. platform fee). Meeting link ready.`);
-      setTimeout(() => router.push(`/session/${res.session.id}`), 1500);
+      setBookingMsg("Request sent. The mentor must accept before the session is booked; credits are charged only after acceptance. Track the request in My Learning.");
+      setSelected(null);
     } catch (err) {
       setBookingMsg(err.message);
     } finally {
@@ -65,6 +65,8 @@ export default function MentorMatch() {
           <h1 className="text-2xl font-semibold text-ink-900">Find your mentor</h1>
           <p className="text-ink-500 text-sm mt-1">Tell us your preferences and we'll rank the best-fit mentors for you.</p>
         </div>
+
+        {bookingMsg && <p role="status" className="text-sm text-accent-700">{bookingMsg}</p>}
 
         <div className="card p-5 grid sm:grid-cols-4 gap-4 items-end">
           <div>
@@ -138,10 +140,9 @@ export default function MentorMatch() {
               <input type="number" min="0.5" step="0.5" className="input-field mb-3" value={hours} onChange={(e) => setHours(e.target.value)} />
               <label className="label">Start time</label>
               <input type="datetime-local" className="input-field mb-4" value={scheduledStart} onChange={(e) => setScheduledStart(e.target.value)} />
-              {bookingMsg && <p className="text-sm text-accent-700 mb-3">{bookingMsg}</p>}
               <div className="flex gap-2">
                 <button onClick={() => setSelected(null)} className="btn-secondary flex-1">Cancel</button>
-                <button onClick={bookSession} disabled={booking} className="btn-primary flex-1">{booking ? "Booking..." : "Confirm booking"}</button>
+                <button onClick={bookSession} disabled={booking} className="btn-primary flex-1">{booking ? "Sending..." : "Send request"}</button>
               </div>
             </div>
           </div>

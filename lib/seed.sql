@@ -3,6 +3,8 @@ INSERT INTO skills (name, category, test_type, difficulty_factor) VALUES
   ('Python', 'programming', 'code', 1.5),
   ('JavaScript', 'programming', 'code', 1.4),
   ('Java', 'programming', 'code', 1.5),
+  ('Node.js', 'programming', 'code', 1.4),
+  ('React', 'programming', 'code', 1.4),
   ('SQL', 'programming', 'code', 1.2),
   ('English', 'language', 'mcq', 1.0),
   ('Spanish', 'language', 'mcq', 1.0),
@@ -12,7 +14,10 @@ INSERT INTO skills (name, category, test_type, difficulty_factor) VALUES
   ('Data Analysis', 'programming', 'mixed', 1.4),
   ('Guitar', 'general', 'mcq', 1.1),
   ('Graphic Design', 'general', 'mcq', 1.2)
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT (name) DO UPDATE SET
+  category = EXCLUDED.category,
+  test_type = EXCLUDED.test_type,
+  difficulty_factor = EXCLUDED.difficulty_factor;
 
 -- Sample assessment questions for Python (code-based)
 INSERT INTO assessment_questions (skill_id, question_type, difficulty, question_text, options, correct_answer, starter_code, points)
@@ -157,20 +162,20 @@ INSERT INTO riddles (skill_id, category, difficulty, question, answer, hint) VAL
 ON CONFLICT DO NOTHING;
 
 -- Sample listings use reserved .invalid addresses and cannot be used to sign in.
-WITH demo_mentors(id, name, email, bio, languages) AS (VALUES
-  ('a1000000-0000-4000-8000-000000000001'::uuid, 'Nora Bennett', 'nora@demo.neuroverse.invalid', 'Python developer who teaches practical automation through small, useful projects.', ARRAY['English']),
-  ('a1000000-0000-4000-8000-000000000002'::uuid, 'Mateo Cruz', 'mateo@demo.neuroverse.invalid', 'Frontend engineer focused on JavaScript fundamentals and accessible interfaces.', ARRAY['English', 'Spanish']),
-  ('a1000000-0000-4000-8000-000000000003'::uuid, 'Priya Nair', 'priya@demo.neuroverse.invalid', 'Data analyst helping learners turn messy datasets into confident decisions.', ARRAY['English', 'Hindi']),
-  ('a1000000-0000-4000-8000-000000000004'::uuid, 'Leo Martin', 'leo@demo.neuroverse.invalid', 'SQL practitioner who makes relational data and query design approachable.', ARRAY['English', 'French']),
-  ('a1000000-0000-4000-8000-000000000005'::uuid, 'Sofia Reyes', 'sofia@demo.neuroverse.invalid', 'Language tutor using everyday conversation to build confidence in Spanish.', ARRAY['English', 'Spanish']),
-  ('a1000000-0000-4000-8000-000000000006'::uuid, 'Amelie Laurent', 'amelie@demo.neuroverse.invalid', 'French teacher bringing pronunciation and real-world dialogue into every lesson.', ARRAY['English', 'French']),
-  ('a1000000-0000-4000-8000-000000000007'::uuid, 'Jordan Ellis', 'jordan@demo.neuroverse.invalid', 'Public-speaking coach helping people shape a message and deliver it with ease.', ARRAY['English']),
-  ('a1000000-0000-4000-8000-000000000008'::uuid, 'Aisha Rahman', 'aisha@demo.neuroverse.invalid', 'Digital marketer teaching small teams to build useful, measurable campaigns.', ARRAY['English', 'Bengali']),
-  ('a1000000-0000-4000-8000-000000000009'::uuid, 'Theo Walker', 'theo@demo.neuroverse.invalid', 'Guitar mentor building musical fundamentals around songs learners already love.', ARRAY['English']),
-  ('a1000000-0000-4000-8000-000000000010'::uuid, 'Camila Silva', 'camila@demo.neuroverse.invalid', 'Graphic designer sharing a practical approach to color, layout, and visual hierarchy.', ARRAY['English', 'Portuguese'])
+WITH demo_mentors(name, email, bio, languages) AS (VALUES
+  ('Nora Bennett', 'nora@demo.neuroverse.invalid', 'Python developer who teaches practical automation through small, useful projects.', ARRAY['English']),
+  ('Mateo Cruz', 'mateo@demo.neuroverse.invalid', 'Frontend engineer focused on JavaScript fundamentals and accessible interfaces.', ARRAY['English', 'Spanish']),
+  ('Priya Nair', 'priya@demo.neuroverse.invalid', 'Data analyst helping learners turn messy datasets into confident decisions.', ARRAY['English', 'Hindi']),
+  ('Leo Martin', 'leo@demo.neuroverse.invalid', 'SQL practitioner who makes relational data and query design approachable.', ARRAY['English', 'French']),
+  ('Sofia Reyes', 'sofia@demo.neuroverse.invalid', 'Language tutor using everyday conversation to build confidence in Spanish.', ARRAY['English', 'Spanish']),
+  ('Amelie Laurent', 'amelie@demo.neuroverse.invalid', 'French teacher bringing pronunciation and real-world dialogue into every lesson.', ARRAY['English', 'French']),
+  ('Jordan Ellis', 'jordan@demo.neuroverse.invalid', 'Public-speaking coach helping people shape a message and deliver it with ease.', ARRAY['English']),
+  ('Aisha Rahman', 'aisha@demo.neuroverse.invalid', 'Digital marketer teaching small teams to build useful, measurable campaigns.', ARRAY['English', 'Bengali']),
+  ('Theo Walker', 'theo@demo.neuroverse.invalid', 'Guitar mentor building musical fundamentals around songs learners already love.', ARRAY['English']),
+  ('Camila Silva', 'camila@demo.neuroverse.invalid', 'Graphic designer sharing a practical approach to color, layout, and visual hierarchy.', ARRAY['English', 'Portuguese'])
 )
-INSERT INTO users (id, name, email, password_hash, bio, languages)
-SELECT id, name, email, '!demo-profile-no-login!', bio, languages FROM demo_mentors
+INSERT INTO users (name, email, password_hash, bio, languages)
+SELECT name, email, '!demo-profile-no-login!', bio, languages FROM demo_mentors
 ON CONFLICT (email) DO NOTHING;
 
 WITH demo_courses(email, skill_name, title, description, mentor_level, base_rate_credits) AS (VALUES

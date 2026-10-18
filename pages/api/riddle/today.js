@@ -1,10 +1,10 @@
 const { getUserFromReq } = require("../../../lib/auth");
-const {
+import {
   MAX_DAILY_RIDDLE_CREDITS,
   CREDITS_PER_CORRECT_ANSWER,
   getCreditsEarnedToday,
   pickRiddleForUser,
-} = require("../../../lib/riddles");
+} from "../../../lib/riddles";
 
 // GET /api/riddle/today
 // Returns an optional riddle for the logged-in user to play this session.

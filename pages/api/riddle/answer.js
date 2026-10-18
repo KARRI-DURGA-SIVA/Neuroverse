@@ -1,11 +1,11 @@
-const { query } = require("../../../lib/db");
+import { query } from "../../../lib/db";
 const { getUserFromReq } = require("../../../lib/auth");
-const {
+import {
   MAX_DAILY_RIDDLE_CREDITS,
   CREDITS_PER_CORRECT_ANSWER,
   getCreditsEarnedToday,
   normalizeAnswer,
-} = require("../../../lib/riddles");
+} from "../../../lib/riddles";
 
 // POST /api/riddle/answer  { riddleId, answer }
 // Grades the answer, and — only if correct AND the user hasn't hit the

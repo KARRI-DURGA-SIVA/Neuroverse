@@ -1,4 +1,4 @@
-const { query, getPool } = require("../../../lib/db");
+import { query, getPool } from "../../../lib/db";
 const { getUserFromReq } = require("../../../lib/auth");
 const { computeSessionPrice } = require("../../../lib/pricing");
 
@@ -42,7 +42,7 @@ export default async function handler(req, res) {
     }
 
     const participantIds = [authUser.id, course.mentor_id].sort();
-    await client.query("SELECT id FROM users WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE", [participantIds]);
+    await client.query("SELECT id FROM users WHERE id = ANY($1::bigint[]) ORDER BY id FOR UPDATE", [participantIds]);
 
     const requestedStart = new Date(scheduledStart);
     const requestedEnd = new Date(requestedStart.getTime() + Number(hours) * 60 * 60 * 1000);

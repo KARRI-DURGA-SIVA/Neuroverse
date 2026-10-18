@@ -1,5 +1,5 @@
-const { query } = require("../../../lib/db");
-const { signPasswordResetToken } = require("../../../lib/auth");
+import { query } from "../../../lib/db";
+import { signPasswordResetToken } from "../../../lib/auth";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

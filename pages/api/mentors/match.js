@@ -1,5 +1,5 @@
 const { getUserFromReq } = require("../../../lib/auth");
-const { findMentorsForSkill } = require("../../../lib/mentorSearch");
+import { findMentorsForSkill } from "../../../lib/mentorSearch";
 
 export default async function handler(req, res) {
   const authUser = getUserFromReq(req);

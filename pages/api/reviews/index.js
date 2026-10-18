@@ -1,4 +1,4 @@
-const { query, getPool } = require("../../../lib/db");
+import { query, getPool } from "../../../lib/db";
 const { getUserFromReq } = require("../../../lib/auth");
 
 export default async function handler(req, res) {

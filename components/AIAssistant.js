@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/router";
 import { apiFetch } from "../lib/api-client";
 
 export default function AIAssistant() {
@@ -11,7 +10,6 @@ export default function AIAssistant() {
   const [loading, setLoading] = useState(false);
   const [proposal, setProposal] = useState(null);
   const scrollRef = useRef(null);
-  const router = useRouter();
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -84,7 +82,7 @@ export default function AIAssistant() {
             )}
 
             {proposal && !loading && (
-              <BookingProposal proposal={proposal} onDone={() => setProposal(null)} onNavigate={(id) => router.push(`/session/${id}`)} onSystemMessage={(text) => setMessages((m) => [...m, { role: "ai", text }])} />
+              <BookingProposal proposal={proposal} onDone={() => setProposal(null)} onSystemMessage={(text) => setMessages((m) => [...m, { role: "ai", text }])} />
             )}
           </div>
 
@@ -108,7 +106,7 @@ export default function AIAssistant() {
   );
 }
 
-function BookingProposal({ proposal, onDone, onNavigate, onSystemMessage }) {
+function BookingProposal({ proposal, onDone, onSystemMessage }) {
   const [hours, setHours] = useState(1);
   const [scheduledStart, setScheduledStart] = useState("");
   const [booking, setBooking] = useState(false);
@@ -129,9 +127,8 @@ function BookingProposal({ proposal, onDone, onNavigate, onSystemMessage }) {
         method: "POST",
         body: JSON.stringify({ courseId: proposal.courseId, hours: Number(hours), scheduledStart }),
       });
-      onSystemMessage(`Booked! ${res.price.totalChargedToLearner} credits charged (incl. 10% platform fee). Opening your session...`);
+      onSystemMessage(`Request sent to ${proposal.mentorName}. The mentor needs to accept before the session is booked; credits are charged only after acceptance. Track the request in My Learning.`);
       onDone();
-      setTimeout(() => onNavigate(res.session.id), 900);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -165,7 +162,7 @@ function BookingProposal({ proposal, onDone, onNavigate, onSystemMessage }) {
       {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
       <div className="flex gap-2">
         <button onClick={onDone} className="btn-secondary text-xs py-1.5 flex-1">Not now</button>
-        <button onClick={confirm} disabled={booking} className="btn-primary text-xs py-1.5 flex-1">{booking ? "Booking..." : "Confirm booking"}</button>
+        <button onClick={confirm} disabled={booking} className="btn-primary text-xs py-1.5 flex-1">{booking ? "Sending..." : "Send request"}</button>
       </div>
     </div>
   );

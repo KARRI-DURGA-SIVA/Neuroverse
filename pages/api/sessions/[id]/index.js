@@ -1,5 +1,4 @@
-const { query } = require("../../../../lib/db");
-const { getPool } = require("../../../../lib/db");
+import { query, getPool } from "../../../../lib/db";
 const { getUserFromReq } = require("../../../../lib/auth");
 const { v4: uuidv4 } = require("uuid");
 
@@ -50,7 +49,7 @@ export default async function handler(req, res) {
 
         if (status === "confirmed") {
           const participantIds = [current.learner_id, current.mentor_id].sort();
-          await client.query("SELECT id FROM users WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE", [participantIds]);
+          await client.query("SELECT id FROM users WHERE id = ANY($1::bigint[]) ORDER BY id FOR UPDATE", [participantIds]);
           const requestedEnd = new Date(new Date(current.scheduled_start).getTime() + Number(current.hours) * 60 * 60 * 1000);
           const overlap = await client.query(
             `SELECT id FROM sessions

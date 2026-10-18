@@ -3,7 +3,7 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
@@ -15,10 +15,13 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS languages TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE users ALTER COLUMN credits TYPE NUMERIC(10,2) USING credits::NUMERIC(10,2);
+
 -- category: 'programming' | 'language' | 'general'
 -- test_type: 'code' | 'mcq' | 'mixed'
 CREATE TABLE IF NOT EXISTS skills (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id BIGSERIAL PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
   category TEXT NOT NULL DEFAULT 'general',
   test_type TEXT NOT NULL DEFAULT 'mcq',
@@ -27,12 +30,18 @@ CREATE TABLE IF NOT EXISTS skills (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE skills ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'general';
+ALTER TABLE skills ADD COLUMN IF NOT EXISTS test_type TEXT NOT NULL DEFAULT 'mcq';
+ALTER TABLE skills ADD COLUMN IF NOT EXISTS difficulty_factor NUMERIC(4,2) NOT NULL DEFAULT 1.0;
+ALTER TABLE skills ADD COLUMN IF NOT EXISTS is_custom BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE skills ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
 -- type: 'known' | 'learning'
 -- level: 'beginner' | 'intermediate' | 'advanced' (only for known skills after assessment)
 CREATE TABLE IF NOT EXISTS user_skills (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  skill_id BIGINT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
   level TEXT,
   assessment_score NUMERIC(5,2),
@@ -43,8 +52,8 @@ CREATE TABLE IF NOT EXISTS user_skills (
 
 -- question_type: 'code' | 'mcq'
 CREATE TABLE IF NOT EXISTS assessment_questions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  skill_id BIGINT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
   question_type TEXT NOT NULL,
   difficulty TEXT NOT NULL, -- beginner | intermediate | advanced | expert (target difficulty of the question)
   question_text TEXT NOT NULL,
@@ -56,9 +65,9 @@ CREATE TABLE IF NOT EXISTS assessment_questions (
 );
 
 CREATE TABLE IF NOT EXISTS assessment_attempts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  skill_id BIGINT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
   score NUMERIC(5,2) NOT NULL,
   classified_level TEXT NOT NULL,
   answers JSONB,
@@ -66,9 +75,9 @@ CREATE TABLE IF NOT EXISTS assessment_attempts (
 );
 
 CREATE TABLE IF NOT EXISTS courses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  mentor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  mentor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  skill_id BIGINT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   mentor_level TEXT NOT NULL, -- beginner | intermediate | advanced (mentor's classified level in this skill)
@@ -78,7 +87,7 @@ CREATE TABLE IF NOT EXISTS courses (
 );
 
 CREATE TABLE IF NOT EXISTS mentor_reputation (
-  mentor_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  mentor_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   avg_rating NUMERIC(3,2) NOT NULL DEFAULT 0,
   total_reviews INT NOT NULL DEFAULT 0,
   expertise_multiplier NUMERIC(4,2) NOT NULL DEFAULT 1.0
@@ -86,10 +95,10 @@ CREATE TABLE IF NOT EXISTS mentor_reputation (
 
 -- status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
 CREATE TABLE IF NOT EXISTS sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  learner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  mentor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  learner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mentor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   hours NUMERIC(5,2) NOT NULL,
   scheduled_start TIMESTAMPTZ NOT NULL,
   price_per_hour NUMERIC(10,2) NOT NULL,
@@ -104,8 +113,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 -- type: 'purchase' | 'spend' | 'earn' | 'refund' | 'signup_bonus' | 'platform_fee'
 CREATE TABLE IF NOT EXISTS transactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
   credits NUMERIC(10,2) NOT NULL,
   description TEXT,
@@ -113,37 +122,39 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 
 CREATE TABLE IF NOT EXISTS reviews (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  learner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  mentor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  session_id BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  learner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mentor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
   feedback TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
   type TEXT NOT NULL DEFAULT 'info',
   is_read BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'info';
+
 CREATE TABLE IF NOT EXISTS session_files (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  uploaded_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  session_id BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  uploaded_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   filename TEXT NOT NULL,
   url TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  session_id BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -154,8 +165,8 @@ CREATE TABLE IF NOT EXISTS messages (
 -- NULL skill_id are generic and used as a fallback when no skill-specific
 -- riddle is available.
 CREATE TABLE IF NOT EXISTS riddles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  skill_id UUID REFERENCES skills(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  skill_id BIGINT REFERENCES skills(id) ON DELETE CASCADE,
   category TEXT NOT NULL DEFAULT 'general', -- 'programming' | 'language' | 'general'
   difficulty TEXT NOT NULL DEFAULT 'beginner',
   question TEXT NOT NULL,
@@ -169,9 +180,9 @@ CREATE TABLE IF NOT EXISTS riddles (
 -- attempt_date = today), and to avoid re-serving a riddle the user already
 -- answered correctly.
 CREATE TABLE IF NOT EXISTS riddle_attempts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  riddle_id UUID NOT NULL REFERENCES riddles(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  riddle_id BIGINT NOT NULL REFERENCES riddles(id) ON DELETE CASCADE,
   correct BOOLEAN NOT NULL DEFAULT false,
   credits_awarded NUMERIC(5,2) NOT NULL DEFAULT 0,
   attempt_date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -185,3 +196,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_mentor ON sessions(mentor_id);
 CREATE INDEX IF NOT EXISTS idx_courses_skill ON courses(skill_id);
 CREATE INDEX IF NOT EXISTS idx_riddles_skill ON riddles(skill_id);
 CREATE INDEX IF NOT EXISTS idx_riddle_attempts_user_date ON riddle_attempts(user_id, attempt_date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_assessment_questions_skill_text
+  ON assessment_questions(skill_id, question_text);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_riddles_skill_question
+  ON riddles((COALESCE(skill_id, 0)), question);

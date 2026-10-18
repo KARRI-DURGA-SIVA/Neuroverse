@@ -1,4 +1,4 @@
-const { query } = require("../../../lib/db");
+import { query } from "../../../lib/db";
 const { getUserFromReq } = require("../../../lib/auth");
 
 export default async function handler(req, res) {
@@ -38,9 +38,9 @@ export default async function handler(req, res) {
     `SELECT s.*, COUNT(c.id) FILTER (WHERE u.email IS NULL OR u.email NOT LIKE '%@demo.neuroverse.invalid') as mentor_count FROM skills s
      LEFT JOIN courses c ON c.skill_id = s.id
      LEFT JOIN users u ON c.mentor_id = u.id
-     WHERE s.id != ALL($1::uuid[])
+    WHERE s.id != ALL($1::bigint[])
      GROUP BY s.id ORDER BY mentor_count DESC LIMIT 6`,
-    [knownIds.length ? knownIds : ["00000000-0000-0000-0000-000000000000"]]
+      [knownIds.length ? knownIds : ["0"]]
   );
 
   // Recommended mentors: top-rated mentors teaching the learner's "learning" skills
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
        JOIN users u ON c.mentor_id = u.id
        JOIN skills s ON c.skill_id = s.id
        LEFT JOIN mentor_reputation mr ON mr.mentor_id = c.mentor_id
-       WHERE c.skill_id = ANY($1::uuid[]) AND c.mentor_id != $2
+      WHERE c.skill_id = ANY($1::bigint[]) AND c.mentor_id != $2
          AND u.email NOT LIKE '%@demo.neuroverse.invalid'
        ORDER BY mr.avg_rating DESC NULLS LAST LIMIT 6`,
       [learningSkillIds, authUser.id]

@@ -1,15 +1,44 @@
-const { getUserFromReq } = require("../../../lib/auth");
-const { query } = require("../../../lib/db");
+
+import { query } from "../../../lib/db";
+import { getAuthenticatedUser } from "../../../lib/auth";
 
 export default async function handler(req, res) {
-  const authUser = getUserFromReq(req);
-  if (!authUser) return res.status(401).json({ error: "Not authenticated" });
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    return res.status(405).json({ message: "Method not allowed" });
+  }
 
-  const result = await query(
-    "SELECT id, name, email, age, profile_pic, languages, bio, credits, created_at FROM users WHERE id = $1",
-    [authUser.id]
-  );
-  if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
+  try {
+    const auth = getAuthenticatedUser(req);
 
-  return res.status(200).json({ user: result.rows[0] });
+    if (!auth) {
+      return res.status(401).json({
+        message: "Please log in again",
+      });
+    }
+
+    const result = await query(
+      `SELECT id, name, email, age, bio, profile_pic, credits, created_at
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [auth.userId]
+    );
+
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(401).json({
+        message: "User account not found",
+      });
+    }
+
+    return res.status(200).json({ user });
+  } catch (error) {
+    console.error("Authentication check error:", error);
+
+    return res.status(500).json({
+      message: "Unable to verify your session",
+    });
+  }
 }

@@ -1,4 +1,4 @@
-const { query } = require("../../../lib/db");
+import { query } from "../../../lib/db";
 const { getUserFromReq } = require("../../../lib/auth");
 const { CREDIT_PACKS } = require("../../../lib/pricing");
 
@@ -78,6 +78,10 @@ export default async function handler(req, res) {
 
     if (paymentSource !== "demo") {
       return res.status(503).json({ error: "Payments are not configured yet. Add STRIPE_SECRET_KEY to enable credit purchases." });
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      return res.status(503).json({ error: "Demo credit purchases are disabled in production. Configure a payment provider to buy credits." });
     }
 
     await query("UPDATE users SET credits = credits + $1 WHERE id = $2", [pack.credits, authUser.id]);
