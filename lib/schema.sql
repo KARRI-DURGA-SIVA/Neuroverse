@@ -37,7 +37,7 @@ ALTER TABLE skills ADD COLUMN IF NOT EXISTS is_custom BOOLEAN NOT NULL DEFAULT f
 ALTER TABLE skills ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 -- type: 'known' | 'learning'
--- level: 'beginner' | 'intermediate' | 'advanced' (only for known skills after assessment)
+-- level: 'beginner' | 'intermediate' | 'advanced' | 'expert' (only for known skills after assessment)
 CREATE TABLE IF NOT EXISTS user_skills (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -74,13 +74,43 @@ CREATE TABLE IF NOT EXISTS assessment_attempts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS assessment_runs (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  skill_id BIGINT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  question_ids BIGINT[] NOT NULL,
+  status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed', 'abandoned')),
+  focus_loss_count INT NOT NULL DEFAULT 0,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS assessment_run_events (
+  id BIGSERIAL PRIMARY KEY,
+  run_id BIGINT NOT NULL REFERENCES assessment_runs(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL,
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS run_id BIGINT REFERENCES assessment_runs(id);
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS correct_count INT NOT NULL DEFAULT 0;
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS wrong_count INT NOT NULL DEFAULT 0;
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS unanswered_count INT NOT NULL DEFAULT 0;
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS total_questions INT NOT NULL DEFAULT 0;
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS completed BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS focus_loss_count INT NOT NULL DEFAULT 0;
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS question_snapshot JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 CREATE TABLE IF NOT EXISTS courses (
   id BIGSERIAL PRIMARY KEY,
   mentor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   skill_id BIGINT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
-  mentor_level TEXT NOT NULL, -- beginner | intermediate | advanced (mentor's classified level in this skill)
+  availability_text TEXT,
+  publish_request_key TEXT,
+  mentor_level TEXT NOT NULL, -- beginner | intermediate | advanced | expert (mentor's classified level in this skill)
   base_rate_credits NUMERIC(10,2) NOT NULL, -- credits per hour, pre mentor-expertise multiplier
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -93,7 +123,7 @@ CREATE TABLE IF NOT EXISTS mentor_reputation (
   expertise_multiplier NUMERIC(4,2) NOT NULL DEFAULT 1.0
 );
 
--- status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+-- status: 'pending' | 'accepted' | 'meeting_pending' | 'confirmed' | 'in_progress' | 'completed' | 'declined' | 'cancelled'
 CREATE TABLE IF NOT EXISTS sessions (
   id BIGSERIAL PRIMARY KEY,
   learner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -108,8 +138,27 @@ CREATE TABLE IF NOT EXISTS sessions (
   credited_to_mentor NUMERIC(10,2) NOT NULL,
   status TEXT NOT NULL DEFAULT 'confirmed',
   meeting_link TEXT,
+  skill_level TEXT NOT NULL DEFAULT 'intermediate',
+  payment_status TEXT NOT NULL DEFAULT 'unpaid',
+  payment_reference TEXT,
+  payment_attempt INT NOT NULL DEFAULT 0,
+  request_key TEXT,
+  zoom_meeting_id TEXT,
+  zoom_creation_started_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS skill_level TEXT NOT NULL DEFAULT 'intermediate';
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid';
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS payment_reference TEXT;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS payment_attempt INT NOT NULL DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS request_key TEXT;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS zoom_meeting_id TEXT;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS zoom_creation_started_at TIMESTAMPTZ;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS availability_text TEXT;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS publish_request_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_publish_request_key
+  ON courses(mentor_id, publish_request_key) WHERE publish_request_key IS NOT NULL;
 
 -- type: 'purchase' | 'spend' | 'earn' | 'refund' | 'signup_bonus' | 'platform_fee'
 CREATE TABLE IF NOT EXISTS transactions (
@@ -120,6 +169,40 @@ CREATE TABLE IF NOT EXISTS transactions (
   description TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS wallet_topups (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  order_id TEXT UNIQUE,
+  payment_id TEXT UNIQUE,
+  pack_index INT NOT NULL,
+  credits NUMERIC(10,2) NOT NULL,
+  amount_paise INT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'creating',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS session_extensions (
+  id BIGSERIAL PRIMARY KEY,
+  session_id BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  learner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  extra_minutes INT NOT NULL,
+  base_credits NUMERIC(10,2) NOT NULL,
+  platform_fee_credits NUMERIC(10,2) NOT NULL,
+  charge_credits NUMERIC(10,2) NOT NULL,
+  mentor_credits NUMERIC(10,2) NOT NULL,
+  status TEXT NOT NULL DEFAULT 'processing',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(session_id, idempotency_key)
+);
+
+ALTER TABLE session_extensions ADD COLUMN IF NOT EXISTS base_credits NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE session_extensions ADD COLUMN IF NOT EXISTS platform_fee_credits NUMERIC(10,2) NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS reviews (
   id BIGSERIAL PRIMARY KEY,
@@ -193,10 +276,21 @@ CREATE INDEX IF NOT EXISTS idx_user_skills_user ON user_skills(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_skills_skill ON user_skills(skill_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_learner ON sessions(learner_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_mentor ON sessions(mentor_id);
+CREATE INDEX IF NOT EXISTS idx_assessment_runs_user_skill ON assessment_runs(user_id, skill_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_assessment_run_events_run ON assessment_run_events(run_id, occurred_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_assessment_attempts_run ON assessment_attempts(run_id) WHERE run_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_courses_skill ON courses(skill_id);
 CREATE INDEX IF NOT EXISTS idx_riddles_skill ON riddles(skill_id);
 CREATE INDEX IF NOT EXISTS idx_riddle_attempts_user_date ON riddle_attempts(user_id, attempt_date);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_assessment_questions_skill_text
   ON assessment_questions(skill_id, question_text);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_spend_transaction
+  ON transactions(description) WHERE type = 'spend' AND description LIKE 'session:%:spend';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_request_key
+  ON sessions(learner_id, request_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_earn_transaction
+  ON transactions(description) WHERE type = 'earn' AND description LIKE 'session:%:earn';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_refund_transaction
+  ON transactions(description) WHERE type = 'refund' AND description LIKE 'session:%:refund';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_riddles_skill_question
   ON riddles((COALESCE(skill_id, 0)), question);

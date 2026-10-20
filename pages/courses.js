@@ -5,42 +5,6 @@ import { apiFetch } from "../lib/api-client";
 
 const COURSE_ACCENTS = ["#2858e8", "#ff4f32", "#171719", "#7eaa16"];
 
-const DEMO_COURSES = [
-  {
-    id: "demo-course-1",
-    title: "Design Better Product Stories",
-    description: "Learn how to shape your message, improve product communication, and speak with more clarity.",
-    skill_name: "Product Thinking",
-    category: "Creative",
-    mentor_name: "Jordan Ellis",
-    price_per_hour: 50,
-    avg_rating: 4.8,
-    is_demo: true,
-  },
-  {
-    id: "demo-course-2",
-    title: "Guitar Foundations Through Songs",
-    description: "Build rhythm, transitions, and confidence with songs you already know and love.",
-    skill_name: "Music",
-    category: "Creative",
-    mentor_name: "Theo Walker",
-    price_per_hour: 33,
-    avg_rating: 4.8,
-    is_demo: true,
-  },
-  {
-    id: "demo-course-3",
-    title: "Data Analysis for Product Decisions",
-    description: "Turn messy data into clear insights and better product decisions.",
-    skill_name: "Data Analysis",
-    category: "Data & Analytics",
-    mentor_name: "Priya Nair",
-    price_per_hour: 63,
-    avg_rating: 4.9,
-    is_demo: true,
-  },
-];
-
 export default function Courses() {
   const [courses, setCourses] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -50,6 +14,9 @@ export default function Courses() {
   const [error, setError] = useState("");
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [hours, setHours] = useState("1");
+  const [skillLevel, setSkillLevel] = useState("beginner");
+  const [requestKey, setRequestKey] = useState("");
+  const [skillLevelFactors, setSkillLevelFactors] = useState({ beginner: 0.5, intermediate: 1, advanced: 1.5 });
   const [scheduledStart, setScheduledStart] = useState("");
   const [booking, setBooking] = useState(false);
   const [bookingMessage, setBookingMessage] = useState("");
@@ -57,8 +24,11 @@ export default function Courses() {
 
   useEffect(() => {
     apiFetch("/api/courses")
-      .then((data) => setCourses(data.courses || []))
-      .catch(() => setCourses([]))
+      .then((data) => {
+        setCourses(data.courses || []);
+        if (data.skillLevelFactors) setSkillLevelFactors(data.skillLevelFactors);
+      })
+      .catch((err) => { setCourses([]); setError(err.message || "Could not load courses."); })
       .finally(() => setLoading(false));
     apiFetch("/api/sessions").then((data) => setSessions(data.sessions || [])).catch(() => {});
   }, []);
@@ -79,18 +49,14 @@ export default function Courses() {
       .toLowerCase();
     return matchesCategory && searchable.includes(query.toLowerCase());
   });
-  const displayedCourses = courses.length ? visibleCourses : DEMO_COURSES.filter((course) => {
-    const matchesCategory = category === "All courses" || course.category === category;
-    const searchable = [course.title, course.skill_name, course.description, course.mentor_name].join(" ").toLowerCase();
-    return matchesCategory && searchable.includes(query.toLowerCase());
-  });
+  const displayedCourses = visibleCourses;
 
   async function bookCourse(user) {
     if (!selectedCourse || !hours || !scheduledStart) return;
     const requestedStart = new Date(scheduledStart);
     const requestedEnd = requestedStart.getTime() + Number(hours) * 60 * 60 * 1000;
     const overlappingSession = sessions.find((session) => {
-      if (!["pending", "confirmed", "in_progress"].includes(session.status)) return false;
+      if (!["pending", "accepted", "meeting_pending", "confirmed", "in_progress"].includes(session.status)) return false;
       const involvesUser = session.learner_id === user.id || session.mentor_id === user.id
         || session.learner_id === selectedCourse.mentor_id || session.mentor_id === selectedCourse.mentor_id;
       const sessionStart = new Date(session.scheduled_start).getTime();
@@ -107,7 +73,7 @@ export default function Courses() {
     try {
       const result = await apiFetch("/api/sessions/book", {
         method: "POST",
-        body: JSON.stringify({ courseId: selectedCourse.id, hours, scheduledStart }),
+        body: JSON.stringify({ courseId: selectedCourse.id, hours, scheduledStart, skillLevel, requestKey }),
       });
       setSessions((current) => [...current, result.session]);
       setBookingComplete(true);
@@ -171,7 +137,6 @@ export default function Courses() {
                 <div className="flex flex-1 flex-col p-5">
                   <div className="flex items-center justify-between gap-3">
                     <span className="course-tag">{course.category || course.skill_name}</span>
-                    {course.is_demo && <span className="shrink-0 rounded-sm bg-[#f2f3f4] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-500">Sample profile</span>}
                   </div>
                   <h2 className="mt-4 text-xl font-semibold leading-snug text-ink-900">{course.title}</h2>
                   <p className="mt-2 text-sm leading-relaxed text-ink-500">{course.description || `Build your ${course.skill_name} skills with a NeuroVerse mentor.`}</p>
@@ -194,9 +159,8 @@ export default function Courses() {
                     </div>
                     <div className="mt-4 flex items-center justify-between gap-3">
                       <p className="text-xs text-ink-500"><span className="font-semibold text-ink-900">{Number(course.price_per_hour || course.base_rate_credits).toFixed(0)} credits</span> / hour</p>
-                      {course.is_demo ? (
-                        <span className="text-xs font-medium text-ink-500">Example listing</span>
-                      ) : (
+                      <div className="flex items-center gap-2">
+                        <Link href={`/courses/${course.id}`} className="btn-secondary px-3 py-2 text-sm">View</Link>
                         <button
                           type="button"
                           onClick={() => {
@@ -204,17 +168,19 @@ export default function Courses() {
                             setBookingMessage("");
                             setBookingComplete(false);
                             setHours("1");
+                            setSkillLevel("beginner");
+                            setRequestKey(createRequestKey());
                             setScheduledStart("");
                           }}
                           className="rounded-md bg-[#5149e8] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#423bd0]"
                         >
-                          {getActiveCourseSession(sessions, course.id, user.id) ? "Choose another time" : "Book this course"}
+                          {getActiveCourseSession(sessions, course.id, user.id) ? "Choose time" : "Book"}
                         </button>
-                      )}
+                      </div>
                     </div>
                     {getActiveCourseSession(sessions, course.id, user.id) && (
                       <p className="mt-2 text-right text-xs text-ink-500">
-                        {getActiveCourseSession(sessions, course.id, user.id).status === "pending" ? "Request awaiting mentor" : "Already booked"}
+                        {getActiveCourseSession(sessions, course.id, user.id).status === "pending" ? "Request awaiting mentor" : getActiveCourseSession(sessions, course.id, user.id).status === "accepted" ? "Awaiting your schedule confirmation" : getActiveCourseSession(sessions, course.id, user.id).status === "meeting_pending" ? "Setting up Zoom meeting" : "Already booked"}
                         {" · "}{new Date(getActiveCourseSession(sessions, course.id, user.id).scheduled_start).toLocaleString()}
                       </p>
                     )}
@@ -250,13 +216,22 @@ export default function Courses() {
                 <div className="mt-5 border-y border-gray-200 py-5">
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#e6f7ee] text-xl font-semibold text-[#16864b]" aria-label="Success">✓</div>
                   <p className="mt-4 text-sm leading-relaxed text-ink-700">Your request was sent to {selectedCourse.mentor_name}. They will review the time and you’ll get a notification when they respond.</p>
-                  <p className="mt-2 text-xs text-ink-500">This session is not booked yet. No credits are charged unless the mentor accepts.</p>
+                  <p className="mt-2 text-xs text-ink-500">This session is not booked yet. No credits are charged until the mentor accepts and you confirm the schedule.</p>
                   <button type="button" onClick={() => setSelectedCourse(null)} className="btn-primary mt-5 text-sm">Done</button>
                 </div>
               ) : (
                 <>
                   <p className="mt-4 border-y border-gray-200 py-3 text-sm text-ink-500">{Number(selectedCourse.price_per_hour || selectedCourse.base_rate_credits).toFixed(0)} credits per hour. The final total includes the platform fee.</p>
                   <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="booking-level" className="label">Your target skill level</label>
+                      <select id="booking-level" className="input-field" value={skillLevel} onChange={(event) => setSkillLevel(event.target.value)}>
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="expert">Expert</option>
+                      </select>
+                    </div>
                     <div>
                       <label htmlFor="booking-hours" className="label">Duration</label>
                       <input id="booking-hours" type="number" min="0.5" max="8" step="0.5" className="input-field" value={hours} onChange={(event) => setHours(event.target.value)} />
@@ -266,6 +241,12 @@ export default function Courses() {
                       <input id="booking-time" type="datetime-local" min={new Date().toISOString().slice(0, 16)} className="input-field" value={scheduledStart} onChange={(event) => setScheduledStart(event.target.value)} />
                     </div>
                   </div>
+                  {(() => {
+                    const mentorFactor = skillLevelFactors[selectedCourse.mentor_level] || 1;
+                    const hourly = Number(selectedCourse.price_per_hour || selectedCourse.base_rate_credits) * (skillLevelFactors[skillLevel] || 1) / mentorFactor;
+                    const estimate = Math.round(hourly * Number(hours || 0) * 1.1 * 100) / 100;
+                    return <p className="mt-4 text-sm text-ink-700">Estimated total: <strong>{estimate.toFixed(2)} credits</strong> for {hours || 0} hour(s), including the platform fee. Final price is confirmed by the server.</p>;
+                  })()}
                   {bookingMessage && <p role="alert" className="mt-4 text-sm text-red-700">{bookingMessage}</p>}
                   <div className="mt-6 flex justify-end gap-2">
                     <button type="button" disabled={booking} onClick={() => setSelectedCourse(null)} className="btn-secondary text-sm">Cancel</button>
@@ -285,5 +266,9 @@ export default function Courses() {
 function getActiveCourseSession(sessions, courseId, userId) {
   return sessions.find((session) => session.course_id === courseId
     && session.learner_id === userId
-    && ["pending", "confirmed", "in_progress"].includes(session.status));
+    && ["pending", "accepted", "meeting_pending", "confirmed", "in_progress"].includes(session.status));
+}
+
+function createRequestKey() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

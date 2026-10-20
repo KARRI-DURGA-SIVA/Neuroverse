@@ -70,6 +70,15 @@ export default async function handler(req, res) {
     [authUser.id]
   );
 
+  const assessmentHistory = await query(
+    `SELECT a.id, a.score, a.classified_level, a.correct_count, a.wrong_count,
+            a.unanswered_count, a.total_questions, a.completed, a.created_at,
+            s.id AS skill_id, s.name AS skill_name
+     FROM assessment_attempts a JOIN skills s ON s.id = a.skill_id
+     WHERE a.user_id = $1 ORDER BY a.created_at DESC LIMIT 6`,
+    [authUser.id]
+  );
+
   return res.status(200).json({
     credits,
     upcomingSessions: upcoming.rows,
@@ -78,5 +87,6 @@ export default async function handler(req, res) {
     recommendedSkills: recSkillsRes.rows,
     recommendedMentors: recMentors.rows,
     performance: perf.rows[0],
+    assessmentHistory: assessmentHistory.rows,
   });
 }

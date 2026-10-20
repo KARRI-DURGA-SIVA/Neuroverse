@@ -19,6 +19,10 @@ export default function SessionRoom() {
   const [rating, setRating] = useState(5);
   const [feedback, setFeedback] = useState("");
   const [reviewMsg, setReviewMsg] = useState("");
+  const [clockNow, setClockNow] = useState(Date.now());
+  const [extensionMinutes, setExtensionMinutes] = useState("15");
+  const [extensionMessage, setExtensionMessage] = useState("");
+  const [extending, setExtending] = useState(false);
 
   async function load() {
     if (!id) return;
@@ -29,6 +33,11 @@ export default function SessionRoom() {
   useEffect(() => {
     load();
   }, [id]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClockNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   async function sendMsg() {
     if (!chatInput.trim()) return;
@@ -70,6 +79,23 @@ export default function SessionRoom() {
     load();
   }
 
+  async function extendSession() {
+    setExtending(true);
+    setExtensionMessage("");
+    try {
+      const result = await apiFetch(`/api/sessions/${id}/extend`, {
+        method: "POST",
+        body: JSON.stringify({ extraMinutes: Number(extensionMinutes), idempotencyKey: window.crypto.randomUUID() }),
+      });
+      setExtensionMessage(result.processing ? "Extension is being reconciled with Zoom." : "Extension added and wallet credits charged.");
+      await load();
+    } catch (error) {
+      setExtensionMessage(error.message || "Could not extend this session.");
+    } finally {
+      setExtending(false);
+    }
+  }
+
   async function submitReview() {
     try {
       await apiFetch("/api/reviews", { method: "POST", body: JSON.stringify({ sessionId: id, rating, feedback }) });
@@ -83,17 +109,21 @@ export default function SessionRoom() {
 
   const { session, files, messages } = data;
 
-  if (["pending", "declined", "cancelled"].includes(session.status)) {
+  if (["pending", "accepted", "meeting_pending", "declined", "cancelled"].includes(session.status)) {
     return (
       <Layout>
         {({ user }) => (
           <div className="mx-auto max-w-xl border border-gray-200 bg-white p-7">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#5149e8]">Session request</p>
             <h1 className="mt-3 text-2xl font-semibold text-ink-900">{session.course_title}</h1>
-            <p className="mt-2 text-sm text-ink-500">{session.status === "pending" ? "This request is waiting for the mentor to respond. The session is not booked yet, and no credits have been charged." : `This request was ${session.status}. No session room is available.`}</p>
-            <Link href={session.status === "pending" && user.id === session.mentor_id ? "/mentoring" : "/my-learning"} className="btn-primary mt-6 inline-flex text-sm">
-              {session.status === "pending" && user.id === session.mentor_id ? "Review request" : "Back to my learning"}
-            </Link>
+            <p className="mt-2 text-sm text-ink-500">{session.status === "pending" ? "This request is waiting for the mentor. No credits have been charged." : session.status === "accepted" ? "The mentor accepted. Confirm the schedule from My Learning to spend wallet credits and create the Zoom meeting." : session.status === "meeting_pending" ? "Wallet credits were debited once. Zoom meeting setup is processing; do not submit another confirmation." : `This request was ${session.status}. No session room is available.`}</p>
+            {session.status === "meeting_pending" ? (
+              <button onClick={load} className="btn-primary mt-6 inline-flex text-sm">Refresh status</button>
+            ) : (
+              <Link href={session.status === "pending" && user.id === session.mentor_id ? "/mentoring" : session.status === "accepted" && user.id === session.mentor_id ? "/mentoring" : "/my-learning"} className="btn-primary mt-6 inline-flex text-sm">
+                {session.status === "pending" && user.id === session.mentor_id ? "Review request" : session.status === "accepted" && user.id === session.mentor_id ? "Back to mentoring" : "Back to my learning"}
+              </Link>
+            )}
           </div>
         )}
       </Layout>
@@ -116,6 +146,7 @@ export default function SessionRoom() {
             <div>
               <p className="text-sm text-ink-500">Video meeting</p>
               <a href={session.meeting_link} target="_blank" rel="noreferrer" className="text-accent-600 font-medium text-sm break-all">{session.meeting_link}</a>
+              <p className="mt-2 text-sm font-semibold text-ink-900">{countdownText(session.scheduled_start, session.hours, clockNow)}</p>
             </div>
             <div className="flex gap-2">
               <a href={session.meeting_link} target="_blank" rel="noreferrer" className="btn-primary text-sm">Join meeting</a>
@@ -124,6 +155,24 @@ export default function SessionRoom() {
               )}
             </div>
           </div>
+
+          {(session.status === "confirmed" || session.status === "in_progress")
+            && session.learner_id === user.id
+            && session.zoom_meeting_id
+            && clockNow >= new Date(session.scheduled_start).getTime()
+            && clockNow < new Date(session.scheduled_start).getTime() + Number(session.hours) * 60 * 60 * 1000 && (
+            <div className="card flex flex-wrap items-end gap-3 p-5">
+              <div>
+                <label htmlFor="extension-minutes" className="label">Extend session</label>
+                <select id="extension-minutes" className="input-field" value={extensionMinutes} onChange={(event) => setExtensionMinutes(event.target.value)}>
+                  {[15, 30, 45, 60, 90, 120].map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
+                </select>
+                <p className="mt-1 text-xs text-ink-500">Estimated charge: {(Math.round(Number(session.price_per_hour) * Number(extensionMinutes) / 60 * 1.1 * 100) / 100).toFixed(2)} credits</p>
+              </div>
+              <button disabled={extending} onClick={extendSession} className="btn-primary text-sm">{extending ? "Extending..." : "Add time with wallet credits"}</button>
+              {extensionMessage && <p role="status" className="w-full text-sm text-ink-600">{extensionMessage}</p>}
+            </div>
+          )}
 
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Files + chat */}
@@ -198,4 +247,18 @@ export default function SessionRoom() {
       )}
     </Layout>
   );
+}
+
+function countdownText(startValue, hours, now) {
+  const start = new Date(startValue).getTime();
+  const end = start + Number(hours) * 60 * 60 * 1000;
+  const remaining = Math.max(0, (now < start ? start : end) - now);
+  const totalSeconds = Math.floor(remaining / 1000);
+  const hoursLeft = Math.floor(totalSeconds / 3600);
+  const minutesLeft = Math.floor((totalSeconds % 3600) / 60);
+  const secondsLeft = totalSeconds % 60;
+  const time = `${hoursLeft}h ${String(minutesLeft).padStart(2, "0")}m ${String(secondsLeft).padStart(2, "0")}s`;
+  if (now < start) return `Starts in ${time}`;
+  if (now < end) return `Time remaining ${time}`;
+  return "Scheduled session time has ended";
 }

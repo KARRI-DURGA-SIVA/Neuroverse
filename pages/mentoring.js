@@ -23,7 +23,7 @@ export default function Mentoring() {
     try {
       await apiFetch(`/api/sessions/${session.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
       setSessions((current) => current.map((item) => item.id === session.id ? { ...item, status } : item));
-      setMessage(status === "confirmed" ? "Request accepted. The learner has been notified and the session is booked." : "Request declined. The learner has been notified.");
+      setMessage(status === "accepted" ? "Request accepted. The learner must confirm the schedule and spend wallet credits before it is booked." : "Request declined. The learner has been notified.");
     } catch (err) {
       setMessage(err.message || "Could not update this request.");
     } finally {
@@ -32,7 +32,7 @@ export default function Mentoring() {
   }
 
   async function cancelSession(session) {
-    if (!window.confirm("Withdraw this pending session request?")) return;
+    if (!window.confirm("Withdraw this unpaid session request?")) return;
     setWorkingId(session.id);
     setMessage("");
     try {
@@ -59,17 +59,22 @@ export default function Mentoring() {
           {mentorSessions.map((s) => (
             <div key={s.id} className="card flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
               <div>
-                <p className="font-medium text-ink-900">{s.course_title} <span className="badge bg-ink-100 text-ink-700 ml-2">{s.status === "pending" ? "Request pending" : s.status}</span></p>
+                <p className="font-medium text-ink-900">{s.course_title} <span className="badge bg-ink-100 text-ink-700 ml-2">{s.status === "pending" ? "Request pending" : s.status === "accepted" ? "Awaiting learner confirmation" : s.status === "meeting_pending" ? "Zoom setup processing" : s.status}</span></p>
                 <p className="text-sm text-ink-500">learner: {s.learner_name} · {s.skill_name} · {new Date(s.scheduled_start).toLocaleString()}</p>
-                <p className="text-xs text-ink-500 mt-1">{s.hours}h · {s.status === "pending" ? `You will earn ${s.credited_to_mentor} credits if accepted` : `You earned ${s.credited_to_mentor} credits`}</p>
+                <p className="text-xs text-ink-500 mt-1">{s.hours}h · {s.status === "pending" ? `You will earn ${s.credited_to_mentor} credits if booked` : s.status === "accepted" || s.status === "meeting_pending" ? "No credits earned until wallet payment and meeting setup complete" : s.status === "confirmed" || s.status === "in_progress" || s.status === "completed" ? `Earned ${s.credited_to_mentor} credits` : "No credits earned"}</p>
               </div>
               {s.status === "pending" ? (
                 <div className="flex shrink-0 gap-2">
                   <button disabled={workingId === s.id} onClick={() => respondToRequest(s, "declined")} className="btn-secondary text-sm">Decline</button>
-                  <button disabled={workingId === s.id} onClick={() => respondToRequest(s, "confirmed")} className="btn-primary text-sm">{workingId === s.id ? "Saving..." : "Accept request"}</button>
+                  <button disabled={workingId === s.id} onClick={() => respondToRequest(s, "accepted")} className="btn-primary text-sm">{workingId === s.id ? "Saving..." : "Accept request"}</button>
                   <button disabled={workingId === s.id} onClick={() => cancelSession(s)} className="btn-secondary text-sm">Withdraw</button>
                 </div>
-              ) : s.status === "confirmed" || s.status === "in_progress" ? (
+              ) : s.status === "accepted" ? (
+                <div className="flex shrink-0 gap-2">
+                  <p className="self-center text-xs text-ink-500">Waiting for learner confirmation</p>
+                  <button disabled={workingId === s.id} onClick={() => cancelSession(s)} className="btn-secondary text-sm">Withdraw</button>
+                </div>
+              ) : ["meeting_pending", "confirmed", "in_progress", "completed"].includes(s.status) ? (
                 <div className="flex shrink-0 items-center gap-2">
                   <Link href={`/session/${s.id}`} className="btn-secondary text-sm">Open session</Link>
                   <button onClick={() => setPolicyOpen(true)} className="text-xs font-medium text-ink-500 underline underline-offset-2">Cancellation policy</button>

@@ -3,60 +3,29 @@ import Link from "next/link";
 import Layout from "../components/Layout";
 import { apiFetch } from "../lib/api-client";
 
-const DEMO_COURSES = [
-  {
-    id: "demo-learn-1",
-    title: "Design Better Product Stories",
-    description: "Learn how to shape your message, improve product communication, and speak with more clarity.",
-    skill_name: "Product Thinking",
-    mentor_name: "Jordan Ellis",
-    price_per_hour: 50,
-    avg_rating: 4.8,
-    is_demo: true,
-  },
-  {
-    id: "demo-learn-2",
-    title: "Guitar Foundations Through Songs",
-    description: "Build rhythm, transitions, and confidence with songs you already know and love.",
-    skill_name: "Music",
-    mentor_name: "Theo Walker",
-    price_per_hour: 33,
-    avg_rating: 4.8,
-    is_demo: true,
-  },
-  {
-    id: "demo-learn-3",
-    title: "Data analysis for product decisions",
-    description: "Turn messy data into clear insights and better product decisions.",
-    skill_name: "Data Analysis",
-    mentor_name: "Priya Nair",
-    price_per_hour: 63,
-    avg_rating: 4.9,
-    is_demo: true,
-  },
-];
-
 export default function MyLearning() {
   const [sessions, setSessions] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [courseError, setCourseError] = useState("");
   const [userId, setUserId] = useState(null);
   const [workingId, setWorkingId] = useState(null);
   const [message, setMessage] = useState("");
   const [policyOpen, setPolicyOpen] = useState(false);
+  const [confirmationTimes, setConfirmationTimes] = useState({});
 
   useEffect(() => {
     apiFetch("/api/auth/me").then((d) => setUserId(d.user.id));
     apiFetch("/api/sessions").then((d) => setSessions(d.sessions));
     apiFetch("/api/courses")
       .then((d) => setCourses(d.courses || []))
-      .catch(() => setCourses([]));
+      .catch((err) => { setCourses([]); setCourseError(err.message || "Could not load available courses."); });
   }, []);
 
   const learnerSessions = sessions.filter((s) => s.learner_id === userId);
-  const displayedCourses = courses.length ? courses.slice(0, 3) : DEMO_COURSES;
+  const displayedCourses = courses.slice(0, 3);
 
   async function cancelSession(session) {
-    if (!window.confirm("Withdraw this pending session request?")) return;
+    if (!window.confirm("Withdraw this unpaid session request?")) return;
     setWorkingId(session.id);
     setMessage("");
     try {
@@ -65,6 +34,24 @@ export default function MyLearning() {
       setMessage("Session request withdrawn.");
     } catch (err) {
       setMessage(err.message || "Could not cancel this session.");
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
+  async function confirmSession(session) {
+    setWorkingId(session.id);
+    setMessage("");
+    try {
+      const localTime = confirmationTimes[session.id] || toLocalDateTime(session.scheduled_start);
+      const result = await apiFetch(`/api/sessions/${session.id}/confirm`, {
+        method: "POST",
+        body: JSON.stringify({ scheduledStart: new Date(localTime).toISOString() }),
+      });
+      setSessions((current) => current.map((item) => item.id === session.id ? { ...item, ...(result.session || {}), status: result.session?.status || "meeting_pending" } : item));
+      setMessage(result.processing ? "Wallet debit is being reconciled with Zoom. Do not confirm again." : "Schedule confirmed. Wallet credits were charged and the Zoom meeting is ready.");
+    } catch (err) {
+      setMessage(err.message || "Could not confirm this session.");
     } finally {
       setWorkingId(null);
     }
@@ -92,7 +79,6 @@ export default function MyLearning() {
               <article key={course.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-700">{course.skill_name || "Skill"}</span>
-                  {course.is_demo && <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">Demo</span>}
                 </div>
                 <h3 className="mt-4 text-lg font-semibold leading-snug text-slate-900">{course.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{course.description}</p>
@@ -109,10 +95,12 @@ export default function MyLearning() {
 
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-slate-900">{Number(course.price_per_hour || course.base_rate_credits || 35).toFixed(0)} credits / hour</p>
-                  <button type="button" className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white">View</button>
+                  <Link href={`/courses/${course.id}`} className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white">View</Link>
                 </div>
               </article>
             ))}
+            {courseError && <p role="alert" className="col-span-full py-3 text-sm text-red-700">{courseError}</p>}
+            {!courseError && displayedCourses.length === 0 && <p className="col-span-full py-6 text-center text-sm text-slate-500">No active courses are available yet.</p>}
           </div>
         </section>
 
@@ -124,13 +112,22 @@ export default function MyLearning() {
           {learnerSessions.map((s) => (
             <div key={s.id} className="card flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
               <div>
-                <p className="font-medium text-ink-900">{s.course_title} <span className="badge bg-ink-100 text-ink-700 ml-2">{s.status === "pending" ? "Awaiting mentor" : s.status === "declined" ? "Declined" : s.status}</span></p>
+                <p className="font-medium text-ink-900">{s.course_title} <span className="badge bg-ink-100 text-ink-700 ml-2">{s.status === "pending" ? "Awaiting mentor" : s.status === "accepted" ? "Accepted · confirm schedule" : s.status === "meeting_pending" ? "Zoom setup processing" : s.status === "declined" ? "Declined" : s.status}</span></p>
                 <p className="text-sm text-ink-500">with {s.mentor_name} · {s.skill_name} · {new Date(s.scheduled_start).toLocaleString()}</p>
-                <p className="text-xs text-ink-500 mt-1">{s.hours}h · {s.status === "pending" ? "No credits charged until accepted" : s.status === "declined" ? "No credits were charged" : `${s.total_charged_to_learner} credits charged`}</p>
+                <p className="text-xs text-ink-500 mt-1">{s.hours}h · {s.status === "pending" ? "No credits charged until mentor acceptance and your confirmation" : s.status === "accepted" ? `${s.total_charged_to_learner} credits due from wallet after schedule confirmation` : s.status === "meeting_pending" ? "Credits debited once; Zoom setup is being reconciled" : s.status === "declined" ? "No credits were charged" : s.payment_status === "refunded" ? "Wallet credits refunded" : `${s.total_charged_to_learner} credits charged`}</p>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {s.status === "confirmed" || s.status === "in_progress" ? <Link href={`/session/${s.id}`} className="btn-secondary text-sm">Open</Link> : <span className="text-xs text-ink-500">{s.status === "pending" ? "Request sent" : "Request closed"}</span>}
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+                {s.status === "confirmed" || s.status === "in_progress" ? <Link href={`/session/${s.id}`} className="btn-secondary text-sm">Open</Link> : <span className="text-xs text-ink-500">{s.status === "pending" ? "Request sent" : s.status === "accepted" ? "Awaiting your confirmation" : s.status === "meeting_pending" ? "Setting up meeting" : "Request closed"}</span>}
                 {s.status === "pending" && <button disabled={workingId === s.id} onClick={() => cancelSession(s)} className="btn-secondary text-sm">{workingId === s.id ? "Withdrawing..." : "Withdraw request"}</button>}
+                {s.status === "accepted" && (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <input aria-label={`Confirm schedule for ${s.course_title}`} type="datetime-local" min={new Date().toISOString().slice(0, 16)} value={confirmationTimes[s.id] || toLocalDateTime(s.scheduled_start)} onChange={(event) => setConfirmationTimes((current) => ({ ...current, [s.id]: event.target.value }))} className="input-field text-xs" />
+                    <button disabled={workingId === s.id} onClick={() => confirmSession(s)} className="btn-primary text-sm">{workingId === s.id ? "Confirming..." : `Confirm · ${s.total_charged_to_learner} credits`}</button>
+                    <Link href="/wallet" className="btn-secondary text-sm">Add credits</Link>
+                    <button disabled={workingId === s.id} onClick={() => cancelSession(s)} className="btn-secondary text-sm">Withdraw request</button>
+                  </div>
+                )}
+                {s.status === "meeting_pending" && <Link href={`/session/${s.id}`} className="btn-secondary text-sm">View status</Link>}
                 {s.status === "confirmed" && <button onClick={() => setPolicyOpen(true)} className="text-xs font-medium text-ink-500 underline underline-offset-2">Cancellation policy</button>}
               </div>
             </div>
@@ -145,7 +142,7 @@ export default function MyLearning() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setPolicyOpen(false); }}>
             <section role="dialog" aria-modal="true" aria-labelledby="cancel-policy-title" className="w-full max-w-sm bg-white p-6 shadow-xl">
               <h2 id="cancel-policy-title" className="text-lg font-semibold text-ink-900">Session confirmed</h2>
-              <p className="mt-2 text-sm leading-relaxed text-ink-500">Once the mentor confirms, the session can no longer be cancelled. You can withdraw a request while it is still pending.</p>
+              <p className="mt-2 text-sm leading-relaxed text-ink-500">Pending or accepted requests can be withdrawn before payment. Once you confirm the schedule and credits are charged, the booking cannot be cancelled.</p>
               <button onClick={() => setPolicyOpen(false)} className="btn-primary mt-5 text-sm">Got it</button>
             </section>
           </div>
@@ -157,4 +154,10 @@ export default function MyLearning() {
 
 function canCancelSession(session) {
   return session.status === "pending";
+}
+
+function toLocalDateTime(value) {
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
 }

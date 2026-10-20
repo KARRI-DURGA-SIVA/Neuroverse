@@ -5,8 +5,8 @@ import { apiFetch } from "../../lib/api-client";
 
 export default function MentorMatch() {
   const router = useRouter();
-  const { skillId } = router.query;
-  const [targetLevel, setTargetLevel] = useState("intermediate");
+  const { skillId, targetLevel: requestedTargetLevel } = router.query;
+  const [targetLevel, setTargetLevel] = useState(null);
   const [languages, setLanguages] = useState("");
   const [availability, setAvailability] = useState("");
   const [result, setResult] = useState(null);
@@ -16,8 +16,9 @@ export default function MentorMatch() {
   const [scheduledStart, setScheduledStart] = useState("");
   const [booking, setBooking] = useState(false);
   const [bookingMsg, setBookingMsg] = useState("");
+  const [requestKey, setRequestKey] = useState("");
 
-  async function search() {
+  async function search(level = targetLevel) {
     if (!skillId) return;
     setLoading(true);
     try {
@@ -25,20 +26,26 @@ export default function MentorMatch() {
         method: "POST",
         body: JSON.stringify({
           skillId,
-          targetLevel,
+          ...(level ? { targetLevel: level } : {}),
           preferredLanguages: languages.split(",").map((l) => l.trim()).filter(Boolean),
           preferredAvailability: availability || null,
         }),
       });
       setResult(res);
+      if (!level) setTargetLevel(res.targetLevel);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (skillId) search();
-  }, [skillId]);
+    if (!router.isReady || !skillId) return;
+    const level = ["beginner", "intermediate", "advanced", "expert"].includes(requestedTargetLevel)
+      ? requestedTargetLevel
+      : null;
+    if (level) setTargetLevel(level);
+    search(level);
+  }, [router.isReady, skillId, requestedTargetLevel]);
 
   async function bookSession() {
     if (!selected || !scheduledStart) return;
@@ -47,9 +54,9 @@ export default function MentorMatch() {
     try {
       const res = await apiFetch("/api/sessions/book", {
         method: "POST",
-        body: JSON.stringify({ courseId: selected.courseId, hours, scheduledStart }),
+        body: JSON.stringify({ courseId: selected.courseId, hours, scheduledStart, skillLevel: targetLevel, requestKey }),
       });
-      setBookingMsg("Request sent. The mentor must accept before the session is booked; credits are charged only after acceptance. Track the request in My Learning.");
+      setBookingMsg("Request sent. After mentor acceptance, confirm the schedule from My Learning to spend wallet credits and book the session.");
       setSelected(null);
     } catch (err) {
       setBookingMsg(err.message);
@@ -71,10 +78,11 @@ export default function MentorMatch() {
         <div className="card p-5 grid sm:grid-cols-4 gap-4 items-end">
           <div>
             <label className="label">Target level</label>
-            <select className="input-field" value={targetLevel} onChange={(e) => setTargetLevel(e.target.value)}>
+            <select className="input-field" value={targetLevel || result?.targetLevel || "intermediate"} onChange={(e) => setTargetLevel(e.target.value)}>
               <option value="beginner">Beginner</option>
               <option value="intermediate">Intermediate</option>
               <option value="advanced">Advanced</option>
+              <option value="expert">Expert</option>
             </select>
           </div>
           <div>
@@ -85,7 +93,7 @@ export default function MentorMatch() {
             <label className="label">Availability</label>
             <input className="input-field" placeholder="e.g. evenings" value={availability} onChange={(e) => setAvailability(e.target.value)} />
           </div>
-          <button onClick={search} className="btn-primary" disabled={loading}>{loading ? "Searching..." : "Search mentors"}</button>
+          <button onClick={() => search(targetLevel || result?.targetLevel)} className="btn-primary" disabled={loading}>{loading ? "Searching..." : "Search mentors"}</button>
         </div>
 
         {result?.learningPath?.length > 0 && (
@@ -115,14 +123,16 @@ export default function MentorMatch() {
                     <p className="font-semibold text-ink-900">{m.mentorName}</p>
                     <span className="badge bg-green-50 text-green-700">{m.suitabilityPercent}% match</span>
                   </div>
-                  <p className="text-sm text-ink-500">{m.title} · {m.mentorLevel} level · {m.avgRating.toFixed(1)}★ ({m.totalReviews} reviews)</p>
+                  <p className="text-sm text-ink-500">{m.title} · {m.mentorLevel} mentor · {m.avgRating.toFixed(1)}★ ({m.totalReviews} reviews)</p>
+                  {m.mentorBio && <p className="mt-1 text-xs text-ink-500">{m.mentorBio}</p>}
+                  <p className="mt-1 text-xs text-ink-500">Availability: {m.availability}</p>
                   <p className="text-xs text-ink-500 mt-1">{m.reasons.join(" · ")}</p>
                   {m.languages?.length > 0 && <p className="text-xs text-ink-500 mt-1">Languages: {m.languages.join(", ")}</p>}
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-lg font-semibold text-ink-900">{m.pricePerHour} <span className="text-xs font-normal text-ink-500">credits/hr</span></p>
-                <button onClick={() => setSelected(m)} className="btn-primary text-sm mt-2">Book session</button>
+                <p className="text-lg font-semibold text-ink-900">{m.totalCreditsPerHour} <span className="text-xs font-normal text-ink-500">credits/hr incl. fee</span></p>
+                <button onClick={() => { setSelected(m); setRequestKey(`${Date.now()}-${Math.random().toString(36).slice(2)}`); }} className="btn-primary text-sm mt-2">Book session</button>
               </div>
             </div>
           ))}
@@ -135,7 +145,7 @@ export default function MentorMatch() {
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-40 px-4">
             <div className="card p-6 w-full max-w-sm">
               <h3 className="font-semibold text-ink-900 mb-1">Book with {selected.mentorName}</h3>
-              <p className="text-sm text-ink-500 mb-4">{selected.pricePerHour} credits/hr · {selected.suitabilityPercent}% match</p>
+              <p className="text-sm text-ink-500 mb-4">{selected.totalCreditsPerHour} credits/hr including fee · {selected.suitabilityPercent}% match</p>
               <label className="label">Hours</label>
               <input type="number" min="0.5" step="0.5" className="input-field mb-3" value={hours} onChange={(e) => setHours(e.target.value)} />
               <label className="label">Start time</label>

@@ -7,10 +7,16 @@ export default async function handler(req, res) {
   if (!authUser) return res.status(401).json({ error: "Not authenticated" });
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  // body: { courseId, hours, scheduledStart }
-  const { courseId, hours, scheduledStart } = req.body;
-  if (!courseId || !hours || !scheduledStart) {
-    return res.status(400).json({ error: "courseId, hours and scheduledStart are required" });
+  // body: { courseId, hours, scheduledStart, skillLevel, requestKey }
+  const { courseId, hours, scheduledStart, skillLevel, requestKey } = req.body;
+  if (!courseId || !hours || !scheduledStart || !skillLevel || !requestKey) {
+    return res.status(400).json({ error: "courseId, hours, scheduledStart, skillLevel and requestKey are required" });
+  }
+  if (!["beginner", "intermediate", "advanced", "expert"].includes(skillLevel)) {
+    return res.status(400).json({ error: "Invalid session skill level" });
+  }
+  if (!/^[\w-]{8,100}$/.test(String(requestKey))) {
+    return res.status(400).json({ error: "A valid request key is required" });
   }
 
   const pool = getPool();
@@ -18,6 +24,15 @@ export default async function handler(req, res) {
 
   try {
     await client.query("BEGIN");
+
+    const existingRequest = await client.query(
+      "SELECT * FROM sessions WHERE learner_id = $1 AND request_key = $2 FOR UPDATE",
+      [authUser.id, requestKey]
+    );
+    if (existingRequest.rows.length) {
+      await client.query("COMMIT");
+      return res.status(200).json({ session: existingRequest.rows[0], duplicate: true });
+    }
 
     const courseRes = await client.query(
       `SELECT c.*, s.difficulty_factor, mr.avg_rating, mr.total_reviews, mentor.email as mentor_email
@@ -48,7 +63,7 @@ export default async function handler(req, res) {
     const requestedEnd = new Date(requestedStart.getTime() + Number(hours) * 60 * 60 * 1000);
     const overlap = await client.query(
       `SELECT id FROM sessions
-       WHERE status IN ('pending', 'confirmed', 'in_progress')
+      WHERE status IN ('pending', 'accepted', 'meeting_pending', 'confirmed', 'in_progress')
          AND (learner_id = $1 OR mentor_id = $1 OR learner_id = $2 OR mentor_id = $2)
          AND scheduled_start < $4::timestamptz
          AND scheduled_start + (hours::double precision * interval '1 hour') > $3::timestamptz
@@ -64,6 +79,7 @@ export default async function handler(req, res) {
     const price = computeSessionPrice({
       baseRate: Number(course.base_rate_credits),
       mentorLevel: course.mentor_level,
+      sessionLevel: skillLevel,
       skillDifficultyFactor: Number(course.difficulty_factor),
       mentorAvgRating: Number(course.avg_rating),
       mentorTotalReviews: Number(course.total_reviews),
@@ -73,8 +89,9 @@ export default async function handler(req, res) {
     const sessionRes = await client.query(
       `INSERT INTO sessions
         (learner_id, mentor_id, course_id, hours, scheduled_start, price_per_hour, base_credits,
-         platform_fee_credits, total_charged_to_learner, credited_to_mentor, status, meeting_link)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',NULL) RETURNING *`,
+        platform_fee_credits, total_charged_to_learner, credited_to_mentor, status, meeting_link, skill_level, request_key)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',NULL,$11,$12)
+      ON CONFLICT (learner_id, request_key) DO NOTHING RETURNING *`,
       [
         authUser.id,
         course.mentor_id,
@@ -86,8 +103,18 @@ export default async function handler(req, res) {
         price.platformFee,
         price.totalChargedToLearner,
         price.creditedToMentor,
+        skillLevel,
+        requestKey,
       ]
     );
+    if (!sessionRes.rows.length) {
+      const duplicate = await client.query(
+        "SELECT * FROM sessions WHERE learner_id = $1 AND request_key = $2 FOR UPDATE",
+        [authUser.id, requestKey]
+      );
+      await client.query("COMMIT");
+      return res.status(200).json({ session: duplicate.rows[0], duplicate: true });
+    }
     const session = sessionRes.rows[0];
 
     await client.query(

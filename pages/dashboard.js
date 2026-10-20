@@ -90,6 +90,22 @@ export default function Dashboard() {
                   <p className="border-y border-gray-200 py-5 text-sm text-ink-500">No sessions booked yet. Find a mentor when you are ready for a little guidance.</p>
                 )}
               </Section>
+
+              <Section title="Assessment history" action={{ href: "/explore", label: "Take another test" }}>
+                {data?.assessmentHistory?.length ? (
+                  <div className="divide-y divide-gray-200 border-y border-gray-200">
+                    {data.assessmentHistory.map((attempt) => (
+                      <div key={attempt.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-ink-900">{attempt.skill_name} · {attempt.classified_level}</p>
+                          <p className="text-xs text-ink-500">{Number(attempt.score).toFixed(1)}% · {attempt.correct_count} correct · {attempt.wrong_count} wrong · {attempt.unanswered_count} unanswered · {new Date(attempt.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <Link href={`/mentors/match?skillId=${attempt.skill_id}&targetLevel=${attempt.classified_level}`} className="btn-secondary w-fit text-xs">Find mentor</Link>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="border-y border-gray-200 py-4 text-sm text-ink-500">Completed assessments and skill levels will appear here.</p>}
+              </Section>
             </div>
 
             <aside className="space-y-6">

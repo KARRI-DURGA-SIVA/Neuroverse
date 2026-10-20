@@ -1,6 +1,7 @@
 import { query } from "../../../lib/db";
 const { getUserFromReq } = require("../../../lib/auth");
 const { CREDIT_PACKS } = require("../../../lib/pricing");
+const { getRazorpayConfig, isRazorpayEnabled } = require("../../../lib/razorpay");
 
 function getStripe() {
   const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -14,7 +15,14 @@ export default async function handler(req, res) {
   if (!authUser) return res.status(401).json({ error: "Not authenticated" });
 
   if (req.method === "GET") {
-    return res.status(200).json({ packs: CREDIT_PACKS, paymentEnabled: Boolean(process.env.STRIPE_SECRET_KEY) });
+    const razorpayConfig = getRazorpayConfig();
+    const razorpayEnabled = isRazorpayEnabled(razorpayConfig)
+      && razorpayConfig.pricesInr.length === CREDIT_PACKS.length;
+    return res.status(200).json({
+      packs: CREDIT_PACKS.map((pack, index) => ({ ...pack, priceINR: razorpayConfig.pricesInr[index] || null })),
+      paymentEnabled: Boolean(process.env.STRIPE_SECRET_KEY),
+      razorpayEnabled,
+    });
   }
 
   if (req.method === "POST") {
